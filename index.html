@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscription Payment Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-200">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 class="text-3xl font-bold text-center text-primary mb-8">Subscription Payment Tracker</h1>
+        
+        <!-- Period Selector -->
+        <div class="mb-6">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-xl font-semibold">Payment Period</h2>
+                <div class="flex space-x-2">
+                    <button id="prevPeriod" class="bg-gray-100 dark:bg-gray-800 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button id="nextPeriod" class="bg-gray-100 dark:bg-gray-800 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="currentPeriod" class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center font-semibold text-lg">
+                Jan - Mar 2024
+            </div>
+        </div>
+        
+        <!-- Payment Status -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">Payment Status</h2>
+            <div id="paymentStatus" class="grid gap-4">
+                <!-- Payment cards will be inserted here by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Payment Summary -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">Payment Summary</h2>
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                <div id="summaryStats" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                    <div class="bg-white dark:bg-gray-700 p-3 rounded-lg">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Total Due</div>
+                        <div id="totalDue" class="text-lg font-bold"></div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-700 p-3 rounded-lg">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Collected</div>
+                        <div id="totalCollected" class="text-lg font-bold"></div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-700 p-3 rounded-lg">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Outstanding</div>
+                        <div id="totalOutstanding" class="text-lg font-bold"></div>
+                    </div>
+                </div>
+                
+                <div class="mb-2 font-semibold">Next Due Date:</div>
+                <div id="nextDueDate" class="bg-white dark:bg-gray-700 p-3 rounded-lg">
+                    March 31, 2024
+                </div>
+            </div>
+        </div>
+
+        <!-- All Friends List -->
+        <div>
+            <h2 class="text-xl font-semibold mb-4">All Friends</h2>
+            <div id="friendsList" class="grid gap-4">
+                <!-- Friend cards will be inserted here by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check and set dark mode
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // Subscription Data
+        const subscriptions = [
+            {
+                name: "iCloud",
+                cost: 249000,
+                perMonth: true,
+                members: ["Khánh", "Trân", "Jelly", "Tâm", "Trúc"]
+            },
+            {
+                name: "WOW",
+                cost: 149000,
+                perMonth: true,
+                members: ["Khánh"]
+            },
+            {
+                name: "YouTube",
+                cost: 162000,
+                perMonth: true,
+                members: ["Khánh", "Hy", "Hân", "Hân's friend", "Nhã"]
+            }
+        ];
+
+        // Generate all friends list
+        const allFriends = [...new Set(subscriptions.flatMap(sub => sub.members))].sort();
+
+        // Generate payment periods starting from January of the current year
+        const currentYear = new Date().getFullYear();
+        const paymentPeriods = [
+            { name: `Jan - Mar ${currentYear}`, startMonth: 0, endMonth: 2, year: currentYear },
+            { name: `Apr - Jun ${currentYear}`, startMonth: 3, endMonth: 5, year: currentYear },
+            { name: `Jul - Sep ${currentYear}`, startMonth: 6, endMonth: 8, year: currentYear },
+            { name: `Oct - Dec ${currentYear}`, startMonth: 9, endMonth: 11, year: currentYear }
+        ];
+
+        // Payment records (stored in localStorage)
+        let paymentRecords = [];
+
+        // Load payment records from localStorage
+        function loadPaymentRecords() {
+            const savedRecords = localStorage.getItem('subscriptionPaymentRecords');
+            if (savedRecords) {
+                try {
+                    paymentRecords = JSON.parse(savedRecords);
+                } catch (e) {
+                    console.error('Error loading payment records:', e);
+                    paymentRecords = [];
+                }
+            }
+        }
+
+        // Save payment records to localStorage
+        function savePaymentRecords() {
+            localStorage.setItem('subscriptionPaymentRecords', JSON.stringify(paymentRecords));
+        }
+
+        // Current period index
+        let currentPeriodIndex = 0;
+        const currentMonth = new Date().getMonth();
+        paymentPeriods.forEach((period, index) => {
+            if (currentMonth >= period.startMonth && currentMonth <= period.endMonth) {
+                currentPeriodIndex = index;
+            }
+        });
+
+        // Calculate what each friend owes for the 3-month period
+        function calculateOwedAmount(friend) {
+            let total = 0;
+            subscriptions.forEach(sub => {
+                if (sub.members.includes(friend)) {
+                    // Calculate per-person cost for this subscription
+                    const perPersonCost = sub.cost / sub.members.length;
+                    // Multiply by 3 months if the cost is per month
+                    total += sub.perMonth ? perPersonCost * 3 : perPersonCost;
+                }
+            });
+            return Math.round(total);
+        }
+
+        // Format currency as VND
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                maximumFractionDigits: 0
+            }).format(amount).replace('₫', 'VND');
+        }
+
+        // Check if a friend has paid for the current period
+        function hasPaid(friend, periodIndex) {
+            return paymentRecords.some(record => 
+                record.friend === friend && 
+                record.periodIndex === periodIndex
+            );
+        }
+
+        // Mark a friend as paid for the current period
+        function markAsPaid(friend, periodIndex) {
+            if (!hasPaid(friend, periodIndex)) {
+                paymentRecords.push({
+                    friend,
+                    periodIndex,
+                    date: new Date().toISOString(),
+                    amount: calculateOwedAmount(friend)
+                });
+                savePaymentRecords(); // Save to localStorage
+                renderPaymentStatus();
+                renderSummary();
+                renderFriendsList();
+            }
+        }
+
+        // Mark a friend as unpaid (remove payment record)
+        function markAsUnpaid(friend, periodIndex) {
+            paymentRecords = paymentRecords.filter(record => 
+                !(record.friend === friend && record.periodIndex === periodIndex)
+            );
+            savePaymentRecords(); // Save to localStorage
+            renderPaymentStatus();
+            renderSummary();
+            renderFriendsList();
+        }
+
+        // Render the payment status for the current period
+        function renderPaymentStatus() {
+            const container = document.getElementById('paymentStatus');
+            container.innerHTML = '';
+            
+            allFriends.forEach(friend => {
+                const paid = hasPaid(friend, currentPeriodIndex);
+                const owedAmount = calculateOwedAmount(friend);
+                
+                const card = document.createElement('div');
+                card.className = `bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border ${paid ? 'border-green-300 dark:border-green-700' : 'border-gray-200 dark:border-gray-700'}`;
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-semibold">${friend}</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">Owes: ${formatCurrency(owedAmount)}</div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="mr-3">
+                                <span class="${paid ? 'text-green-500' : 'text-red-500'}">${paid ? 'Paid' : 'Unpaid'}</span>
+                            </div>
+                            <button class="toggle-payment bg-primary hover:bg-primary/90 text-white px-3 py-1 rounded-md text-sm" data-friend="${friend}">
+                                ${paid ? 'Mark Unpaid' : 'Mark Paid'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+                
+                // Add event listener for the toggle button
+                const toggleBtn = card.querySelector('.toggle-payment');
+                toggleBtn.addEventListener('click', () => {
+                    if (paid) {
+                        markAsUnpaid(friend, currentPeriodIndex);
+                    } else {
+                        markAsPaid(friend, currentPeriodIndex);
+                    }
+                });
+            });
+        }
+
+        // Render the payment summary
+        function renderSummary() {
+            const period = paymentPeriods[currentPeriodIndex];
+            
+            // Calculate totals
+            let totalDue = 0;
+            let totalCollected = 0;
+            
+            allFriends.forEach(friend => {
+                const amount = calculateOwedAmount(friend);
+                totalDue += amount;
+                if (hasPaid(friend, currentPeriodIndex)) {
+                    totalCollected += amount;
+                }
+            });
+            
+            // Update the summary elements
+            document.getElementById('totalDue').textContent = formatCurrency(totalDue);
+            document.getElementById('totalCollected').textContent = formatCurrency(totalCollected);
+            document.getElementById('totalOutstanding').textContent = formatCurrency(totalDue - totalCollected);
+            
+            // Set the due date (end of the last month in the period)
+            const dueDate = new Date(period.year, period.endMonth + 1, 0);
+            document.getElementById('nextDueDate').textContent = dueDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Render all friends and their payment history
+        function renderFriendsList() {
+            const container = document.getElementById('friendsList');
+            container.innerHTML = '';
+            
+            allFriends.forEach(friend => {
+                const friendCard = document.createElement('div');
+                friendCard.className = 'bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm';
+                
+                // Calculate total amount owed across all active subscriptions
+                const totalMonthlyAmount = subscriptions.reduce((total, sub) => {
+                    if (sub.members.includes(friend)) {
+                        total += sub.cost / sub.members.length;
+                    }
+                    return total;
+                }, 0);
+                
+                // Build subscription list
+                const subsList = subscriptions
+                    .filter(sub => sub.members.includes(friend))
+                    .map(sub => `
+                        <div class="flex justify-between py-1">
+                            <span>${sub.name}</span>
+                            <span>${formatCurrency(sub.cost / sub.members.length)} / month</span>
+                        </div>
+                    `)
+                    .join('');
+                
+                friendCard.innerHTML = `
+                    <div class="font-semibold text-lg mb-2">${friend}</div>
+                    <div class="text-sm mb-3">Monthly share: ${formatCurrency(totalMonthlyAmount)}</div>
+                    <div class="text-sm mb-3">Quarterly (3 months): ${formatCurrency(totalMonthlyAmount * 3)}</div>
+                    
+                    <div class="text-sm font-medium mb-2">Subscriptions:</div>
+                    <div class="text-sm border-t border-gray-200 dark:border-gray-700">
+                        ${subsList}
+                    </div>
+                `;
+                
+                container.appendChild(friendCard);
+            });
+        }
+
+        // Update current period display
+        function updatePeriodDisplay() {
+            document.getElementById('currentPeriod').textContent = paymentPeriods[currentPeriodIndex].name;
+            renderPaymentStatus();
+            renderSummary();
+        }
+
+        // Initialize the app
+        function initApp() {
+            // Load saved payment records
+            loadPaymentRecords();
+            
+            // Set up period navigation
+            document.getElementById('prevPeriod').addEventListener('click', () => {
+                if (currentPeriodIndex > 0) {
+                    currentPeriodIndex--;
+                    updatePeriodDisplay();
+                }
+            });
+            
+            document.getElementById('nextPeriod').addEventListener('click', () => {
+                if (currentPeriodIndex < paymentPeriods.length - 1) {
+                    currentPeriodIndex++;
+                    updatePeriodDisplay();
+                }
+            });
+            
+            // Initial render
+            updatePeriodDisplay();
+            renderFriendsList();
+        }
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
